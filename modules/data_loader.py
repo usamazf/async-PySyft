@@ -21,12 +21,12 @@ WORKERS = 8
 #   main program for initializing everything and setting up the training process.               #
 #                                                                                               #
 #***********************************************************************************************#
-def load_dataset(dataset="mnist"):
+def load_dataset(dataset="mnist", loaders: bool=False):
     # load required dataset
     if dataset == "cifar-10":
         return CIFAR10_dataset( )
     elif dataset == "mnist":
-        return MNIST_dataset( )
+        return MNIST_dataset(loaders)
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -42,8 +42,8 @@ def CIFAR10_dataset( ):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     # Initialize Datasets. CIFAR10 will automatically download if not present
-    trainset = dt.CIFAR10(root='./data/cifar_10/', train=True,download=True, transform=transform)
-    testset = dt.CIFAR10(root='./data/cifar_10/', train=False,download=True, transform=transform)
+    trainset = dt.CIFAR10(root='./data/cifar_10/', train=True,download=False, transform=transform)
+    testset = dt.CIFAR10(root='./data/cifar_10/', train=False,download=False, transform=transform)
 
     # Create the Dataloaders to feed data to the training and validation steps
     #train_loader = sy.FederatedDataLoader(trainset.federate((v_workers[0],v_workers[1],v_workers[2],v_workers[3],v_workers[4])), batch_size=n_batch, shuffle=True)
@@ -57,7 +57,7 @@ def CIFAR10_dataset( ):
 #   routine for loading mnist dataset from the data directory.                                  #
 #                                                                                               #
 #***********************************************************************************************#
-def MNIST_dataset( ):
+def MNIST_dataset(loaders: bool=False):
     
     # Define the transform for the data. Notice, we must resize to 224x224 with this dataset and model.
     transform = transforms.Compose([transforms.ToTensor(),
@@ -65,8 +65,17 @@ def MNIST_dataset( ):
                                    ])
 
     # Initialize Datasets. MNIST will automatically download if not present
-    trainset = dt.MNIST(root='./data/mnist', train=True,download=True, transform=transform)
-    testset = dt.MNIST(root='./data/mnist', train=False,download=True, transform=transform)
+    trainset = dt.MNIST(root='./data/mnist', train=True,download=False, transform=transform)
+    testset = dt.MNIST(root='./data/mnist', train=False,download=False, transform=transform)
     
+    if loaders:
+        # create train_loader and test_loader if requested
+        train_loader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=64, shuffle=True) 
+        
+        # return train and test loaders
+        return train_loader, test_loader
+    
+    # return datasets if loaders not requested
     return trainset, testset
 

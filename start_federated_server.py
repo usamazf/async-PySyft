@@ -10,7 +10,6 @@ import time
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchvision
 
 import syft as sy
@@ -24,7 +23,11 @@ hook = sy.TorchHook(torch)
 #-----------------------------------------------------------------------------------------------#
 from workers import FederatedServer
 from modules.model_loader import get_model
-from modules.training_plan import build_and_get_train_plan
+from modules.data_loader import load_dataset
+from modules.validate import validate
+from modules.training_plan import build_and_get_train_plan, set_model_params
+from utils.utils import average_model_parameters
+from configs import globals as glb
 
 #-----------------------------------------------------------------------------------------------#
 #                                                                                               #
@@ -70,7 +73,7 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     Returns:
         A tuple containing:
             * worker_id: Union[int, str], id of the worker.
-            * improved model: torch.jit.ScriptModule, model after training at the worker.
+            * updated_parameter: parameters of the improved model.
             * loss: Loss on last training batch, torch.tensor.
     """
     # clear all remote objects
@@ -93,16 +96,36 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     
     # run the async fit method
     task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=["loss", "model_param"])
-    result = await task_object        
+    loss = await task_object        
 
     # fetch new model
-    new_model_params = []
+    updated_parameter = []
     for ptr in model_ptrs:
-        new_model_params.append(ptr.get())
+        updated_parameter.append(ptr.get())
     
     # return results    
-    return [worker.id, result, new_model_params] #model, loss
-    
+    return worker.id, loss, updated_parameter #model, loss
+
+#***********************************************************************************************#
+#                                                                                               #
+#   description:                                                                                #
+#   helper fucntions to build arguments dictionary for training configurations.                 #
+#                                                                                               #
+#***********************************************************************************************#
+def build_training_configurations():
+    # create an arguments dictionary
+    kwargs = dict()
+    kwargs["plan_id"] = glb.PLAN_ID
+    kwargs["model_id"] = glb.MODEL
+    kwargs["model_param_id"] = glb.MODEL_PARAM_ID
+    kwargs["lr"] = glb.INITIAL_LR
+    kwargs["batch_size"] = glb.BATCH_SIZE
+    kwargs["random_sample"] = glb.RANDOM_SAMPLE_BATCHES
+    kwargs["max_nr_batches"] = glb.MAX_NR_BATCHES
+    kwargs["dataset_key"] = glb.DATASET_ID
+    kwargs["epochs"] = glb.NUM_EPOCHS
+    return kwargs
+
 #***********************************************************************************************#
 #                                                                                               #
 #   description:                                                                                #
@@ -113,15 +136,23 @@ async def training_handler():
     # yield control to connector class
     await asyncio.sleep(30)
     
-    # build and get the train plan / training arguments
-    train_plan, kwargs = build_and_get_train_plan()    
+    # build and get the train plan
+    train_plan  = build_and_get_train_plan()
+    
+    # create training arguments
+    kwargs = build_training_configurations()
     
     # build model
-    model = get_model(model_name=kwargs["model_id"])
-    model_params = [param.data for param in model.parameters()]
-
+    model = get_model(model_name=glb.MODEL)
+    
+    # get a loss function
+    criterion = nn.CrossEntropyLoss()
+    
+    # load test dataset
+    _, test_loader = load_dataset(dataset=glb.DATASET, loaders=True)
+    
     # get some variable
-    epochs = kwargs["epochs"]
+    epochs = glb.NUM_EPOCHS
     
     # iterate over the workers
     for epoch in range(epochs):
@@ -132,6 +163,9 @@ async def training_handler():
         sampled_workers = [worker[0] for worker in WORKER_LIST] #[WORKER_LIST[0][0]]
         print("SAMPLED WORKER COUNT: ", len(sampled_workers))
         
+        # extract latest model parameters
+        model_params = [param.data for param in model.parameters()]
+        
         # run the training on all workers
         results = await asyncio.gather(
             *[
@@ -139,17 +173,28 @@ async def training_handler():
                     worker=worker,
                     model_params=model_params,
                     train_plan=train_plan,
-                    dataset_key=kwargs["dataset_key"],
+                    dataset_key=glb.DATASET_ID,
                     epoch=epoch,
                     kwargs=kwargs,
                 )
                 for worker in sampled_workers
             ])
-        print("\nARE THESE THE RESULTS WE WANTED?? ")
-        print(results[0][1].shape)
-        print(results[0][2])
-        # need to add avergae and evaluation requirements here
-    
+        
+        # extract from all workers the updated model parameters
+        upd_wrkr_params = {}
+        for worker_id, worker_loss, worker_model in results:
+            upd_wrkr_params[worker_id] = worker_model
+        
+        # get the parameter average
+        param_avg = average_model_parameters(upd_wrkr_params)
+        
+        # unpack the new parameters into local model
+        set_model_params(model, param_avg)
+        
+        # evaluate on testset using the new model
+        print("Begin Validation @ Epoch {}".format(epoch+1))
+        val_loss, prec1 = validate(test_loader, model, criterion)
+        
     while True:
         continue
 

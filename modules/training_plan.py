@@ -104,21 +104,10 @@ def training_plan(inputs, targets, batch_size, lr, model_params):
 #                                                                                               #
 #***********************************************************************************************#
 def build_and_get_train_plan( ):
-    # create an arguments dictionary
-    kwargs = dict()
-    kwargs["plan_id"] = glb.PLAN_ID
-    kwargs["model_id"] = glb.MODEL
-    kwargs["model_param_id"] = glb.MODEL_PARAM_ID
-    kwargs["lr"] = glb.INITIAL_LR
-    kwargs["batch_size"] = glb.BATCH_SIZE
-    kwargs["random_sample"] = glb.RANDOM_SAMPLE_BATCHES
-    kwargs["max_nr_batches"] = glb.MAX_NR_BATCHES
-    kwargs["dataset_key"] = glb.DATASET_ID
-    kwargs["epochs"] = glb.NUM_EPOCHS
-    
+
     # create a model
     global model
-    model = get_model(model_name=kwargs["model_id"])
+    model = get_model(model_name=glb.MODEL)
     
     # dummy input parameters to make the trace
     model_params = [param.data for param in model.parameters()]
@@ -131,8 +120,7 @@ def build_and_get_train_plan( ):
 
     # build the actual training plan
     training_plan.build(X, y, batch_size, lr, model_params, trace_autograd=True)
-    training_plan.id = kwargs["plan_id"]
-    #training_plan = None
+    training_plan.id = glb.PLAN_ID
     
     # return the requested results
-    return training_plan, kwargs
+    return training_plan

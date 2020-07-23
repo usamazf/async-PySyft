@@ -77,3 +77,49 @@ def split_dataset_and_return_mine(dataset, rank, world_size, split_by_target=Fal
         pass
     
     return final_dataset
+
+#***********************************************************************************************#
+#                                                                                               #
+#   Description:                                                                                #
+#   utility function to split the given dataset.                                                #
+#                                                                                               #
+#***********************************************************************************************#
+def scale_model_parameters(model_params, scale_factor):
+    return [param*scale_factor for param in model_params]
+
+#***********************************************************************************************#
+#                                                                                               #
+#   Description:                                                                                #
+#   utility function to add two model parameter lists.                                          #
+#                                                                                               #
+#***********************************************************************************************#
+def add_model_parameters(dst_model_params, src_model_params):
+    return [a + b for a, b in zip(dst_model_params, src_model_params)]
+
+#***********************************************************************************************#
+#                                                                                               #
+#   Description:                                                                                #
+#   utility function to average a dictionary of models.                                         #
+#                                                                                               #
+#***********************************************************************************************#
+def average_model_parameters(model_params: dict):
+    """Calculate the average of a dictionary containing model parameters.
+    Args:
+        models (Dict): a dictionary of model parameters for which the 
+        average is calculated.
+    Returns:
+        List: the list of averaged parameters.
+    """
+    nr_models = len(model_params)
+    model_list = list(model_params.values())
+    model = model_list[0]
+    
+    # add all models
+    for i in range(1, nr_models):
+        model = add_model_parameters(model, model_list[i])
+        
+    # scale the summed up models
+    model = scale_model_parameters(model, 1.0 / nr_models)
+    
+    # returnt the averaged model
+    return model
