@@ -7,7 +7,6 @@ import asyncio
 import binascii
 import logging
 import ssl
-import copy
 from typing import Union
 from typing import List
 
@@ -172,38 +171,36 @@ class FederatedWorker(VirtualWorker):
         """
         print("Fitting model on worker {0}".format(self.id))
         
-        # get of build requirements
-        local_params = self.train_manager.get_global_model_params()
-        train_plan = self.train_manager.get_train_plan()
-        data_batches = self.train_manager.next_batches(dataset_key=dataset_key)
+        # get model and it's respective parameters
+        model = self.train_manager.get_global_model()
         
-        # get a local copy for training
-        original_params = copy.deepcopy(local_params)
+        # get criterion and optimizer instances
+        criterion = self.train_manager.get_criterion()
+        optimizer = self.train_manager.get_optimizer(model)
+        
+        # get next set of batches to train on
+        data_batches = self.train_manager.next_batches(dataset_key=dataset_key)
         
         # local variables for training
         losses = []
-        accuracies = []        
+        
         # starting training on all batches (need to modify this later to sample)
-        for batch_idx, (input, targets) in enumerate(data_batches):
+        for batch_idx, (input, target) in enumerate(data_batches):
             input = input.view(self.train_manager.batch_size, -1)
-            y_hot = torch.nn.functional.one_hot(targets, 10)
-            loss, acc, *local_params = train_plan.torchscript(
-                input, y_hot, torch.tensor(self.train_manager.batch_size), 
-                torch.tensor(self.train_manager.lr), local_params
-            )
-            losses.append(loss.item())
-            accuracies.append(acc.item())
+            # compute output
+            output = model(input)
+            # clear any previous buffers
+            optimizer.zero_grad()
+            # compute gradients in a backward pass
+            loss = criterion(output, target)
+            loss.backward()
+            # call step of optimizer to update model params
+            optimizer.step()
+            # update local stores
+            losses.append(loss)
         
-        # register losses array as a local object
-        loss = torch.tensor(losses)
-        loss.id = "loss"
-        self.register_obj(loss)
-        
-        # compute change and send it back server
-        difference = [a-b for a,b in zip(local_params,original_params)]
-        
-        # need to figure out a way to return this difference
-        #print(difference)
+        # store all the results so that they can requested back by the server
+        self.train_manager.store_training_results(model, losses)
         
         return None
 

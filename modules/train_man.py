@@ -4,7 +4,9 @@
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
 import torch
-from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import RandomSampler, SequentialSampler
 import numpy as np
 
 #-----------------------------------------------------------------------------------------------#
@@ -12,7 +14,7 @@ import numpy as np
 #   I M P O R T     L O C A L     L I B R A R I E S   /   F I L E S                             #
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
-
+from utils.utils import model_flatten, model_unflatten, AverageMeter
 
 
 #***********************************************************************************************#
@@ -75,27 +77,62 @@ class TrainingManager:
         """
         return self.owner.get_obj(self.plan_id)
 
-    def get_global_model_params(self):
+    def get_global_model(self):
         """Extract the latest model parameters stored at the federated worker
         """
-        model_parameters = []
-        for layer in range(self.model_tensors_count):
-            tensor_id = self.model_param_id+"_"+self.owner.id+"_{0}".format(layer)
-            model_parameters.append(self.owner.get_obj(tensor_id))
-        return model_parameters
+        model_params = self.owner.get_obj(self.model_param_id)
+        model = self.models[self.model_id]
+        # unpack parameters into the locally stored model
+        model_unflatten(model, model_params)
+        return model
     
+    def get_criterion(self):
+        """Decide which criterion is required and build it
+        """
+        if self.criterion == "CrossEntropyLoss":
+            criterion = nn.CrossEntropyLoss()
+        
+        return criterion
+        
+    def get_optimizer(self, model):
+        """Decide which optimizer is required and build it
+        """
+        if self.optimizer == "SGD":
+            optimizer = optim.SGD(model.parameters(), lr=0.0001)
+        
+        return optimizer
+        
+    def store_training_results(self, updated_model, losses):
+        """Store the training results as local objects
+        """
+        # register losses array as a local object
+        loss = torch.tensor([1,2,3])#losses)
+        loss.id = "loss"
+        self.owner.register_obj(loss)
+        
+        # register updated model as a local object
+        updated_params = model_flatten(updated_model)
+        updated_params.id = "updated_params"
+        self.owner.register_obj(updated_params)
+        
+        # compute change and send it back server
+        #difference = [a-b for a,b in zip(local_params,original_params)]
+        
+        # need to figure out a way to return this difference
+        #print(difference)
+
     def setup_configurations(self, config_dict: dict):
         """Setup the train configurations sent from the server
         """
         self.lr = config_dict["lr"]
         self.plan_id = config_dict["plan_id"]
-        self.model_id = config_dict["model_id"]+"_"+self.owner.id
-        print(self.model_id)
+        self.model_id = config_dict["model_id"]
         self.model_param_id = config_dict["model_param_id"]
         self.batch_size = config_dict["batch_size"]
         self.random_sample = config_dict["random_sample"]
         self.max_nr_batches = config_dict["max_nr_batches"]
-        self.model_tensors_count = config_dict["model_tensor_count"]
+        self.criterion = config_dict["criterion"]
+        self.optimizer = config_dict["optimizer"]
     
     def next_batches(self, dataset_key: str):
         """Return next set of batches for training.
@@ -115,11 +152,12 @@ class TrainingManager:
                 next_batch = next(self.data_info[dataset_key][1])
             except:
                 # need to reset the iterator and get new batch
+                print("Resetting Train Loader {0}\n".format(self.owner.id))
                 self.data_info[dataset_key][1] = iter(self.data_info[dataset_key][0])
                 next_batch = next(self.data_info[dataset_key][1])
             # append the new batch to list
             batches.append(next_batch)
-
+        
         # return the requested batches
         return batches
     

@@ -58,7 +58,7 @@ def validate(val_loader, model, criterion):
             top1.update(prec1[0], input.size(0))
             top5.update(prec5[0], input.size(0))
             # display message
-            if i % 100 == 0:
+            if i % 50 == 0:
                 print('Test: [{0}/{1}]\t'
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                       'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'

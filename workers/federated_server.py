@@ -284,10 +284,14 @@ class FederatedServer(BaseWorker):
         # Send an object request message to retrieve the result tensor of the fit() method
         msg = ObjectRequestMessage(return_ids[0], None, "")
         serialized_message = sy.serde.serialize(msg)
-        response = self._send_msg(serialized_message)
-
+        loss = self._send_msg(serialized_message)
+        
+        msg = ObjectRequestMessage(return_ids[1], None, "")
+        serialized_message = sy.serde.serialize(msg)
+        updated_params = self._send_msg(serialized_message)
+        
         # Return the deserialized response.
-        return sy.serde.deserialize(response)
+        return sy.serde.deserialize(loss), sy.serde.deserialize(updated_params)
 
     def fit(self, dataset_key: str, epoch: int, device: str = "cpu", return_ids: List[int] = None):
         """Call the fit() method on the remote worker (WebsocketServerWorker instance).

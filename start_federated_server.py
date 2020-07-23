@@ -25,8 +25,8 @@ from workers import FederatedServer
 from modules.model_loader import get_model
 from modules.data_loader import load_dataset
 from modules.validate import validate
-from modules.training_plan import build_and_get_train_plan, set_model_params
-from utils.utils import average_model_parameters
+#from modules.training_plan import build_and_get_train_plan
+from utils.utils import average_model_parameters, model_flatten, model_unflatten
 from configs import globals as glb
 
 #-----------------------------------------------------------------------------------------------#
@@ -79,32 +79,20 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     # clear all remote objects
     worker.clear_objects_remote()
     
-    model_ptrs = []
-    # send the model parameters to the worker
-    for idx, item in enumerate(model_params):
-        item.id = kwargs["model_param_id"]+"_"+worker.id+"_{0}".format(idx)
-        model_ptrs.append(item.send(worker))
-    kwargs["model_tensor_count"] = len(model_params)
+    # send the fresh model parameters
+    model_params_copy = model_params.clone().detach()
+    model_params_copy.id = kwargs["model_param_id"]
+    ptr_model = model_params_copy.send(worker)
     
     # set train configurations on the remote worker
     await worker.set_train_config(**kwargs)
     
-    # send a copy of training plan to respective worker
-    copy_plan = train_plan.copy()
-    copy_plan.id = train_plan.id
-    copy_plan.send(worker)
-    
-    # run the async fit method
-    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=["loss", "model_param"])
-    loss = await task_object        
+    # run the async fit method and fetch results
+    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=["loss", "updated_params"])
+    loss, updated_params = await task_object        
 
-    # fetch new model
-    updated_parameter = []
-    for ptr in model_ptrs:
-        updated_parameter.append(ptr.get())
-    
     # return results    
-    return worker.id, loss, updated_parameter #model, loss
+    return worker.id, loss, updated_params
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -124,6 +112,9 @@ def build_training_configurations():
     kwargs["max_nr_batches"] = glb.MAX_NR_BATCHES
     kwargs["dataset_key"] = glb.DATASET_ID
     kwargs["epochs"] = glb.NUM_EPOCHS
+    kwargs["criterion"] = glb.CRITERION
+    kwargs["optimizer"] = glb.OPTIMIZER
+
     return kwargs
 
 #***********************************************************************************************#
@@ -134,10 +125,11 @@ def build_training_configurations():
 #***********************************************************************************************#
 async def training_handler():
     # yield control to connector class
-    await asyncio.sleep(30)
+    await asyncio.sleep(10)
     
     # build and get the train plan
-    train_plan  = build_and_get_train_plan()
+    #train_plan  = build_and_get_train_plan()
+    train_plan = None
     
     # create training arguments
     kwargs = build_training_configurations()
@@ -157,14 +149,14 @@ async def training_handler():
     # iterate over the workers
     for epoch in range(epochs):
         # print log message
-        print("Running epoch {0} of {1}".format(epoch+1, epochs))
+        print("\n\nRunning epoch {0} of {1}".format(epoch+1, epochs))
             
         # sample workers based on our logic here
         sampled_workers = [worker[0] for worker in WORKER_LIST] #[WORKER_LIST[0][0]]
-        print("SAMPLED WORKER COUNT: ", len(sampled_workers))
+        print("Sampled worker count: ", len(sampled_workers))
         
         # extract latest model parameters
-        model_params = [param.data for param in model.parameters()]
+        model_params = model_flatten(model)
         
         # run the training on all workers
         results = await asyncio.gather(
@@ -182,14 +174,14 @@ async def training_handler():
         
         # extract from all workers the updated model parameters
         upd_wrkr_params = {}
-        for worker_id, worker_loss, worker_model in results:
-            upd_wrkr_params[worker_id] = worker_model
+        for worker_id, loss, updated_params in results:
+            upd_wrkr_params[worker_id] = updated_params
         
         # get the parameter average
         param_avg = average_model_parameters(upd_wrkr_params)
         
         # unpack the new parameters into local model
-        set_model_params(model, param_avg)
+        model_unflatten(model, param_avg)
         
         # evaluate on testset using the new model
         print("Begin Validation @ Epoch {}".format(epoch+1))

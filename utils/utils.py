@@ -12,13 +12,13 @@ import syft as sy
 #   flatten and unflatten the passed model to be used for synchronization.                      #
 #                                                                                               #
 #***********************************************************************************************#
-def flatten(model):
+def model_flatten(model):
     vec = []
     for param in model.parameters():
         vec.append(param.data.view(-1))
     return torch.cat(vec)
 
-def unflatten(model, vec):
+def model_unflatten(model, vec):
     pointer = 0
     for param in model.parameters():
         num_param = torch.prod(torch.LongTensor(list(param.size())))
@@ -85,7 +85,7 @@ def split_dataset_and_return_mine(dataset, rank, world_size, split_by_target=Fal
 #                                                                                               #
 #***********************************************************************************************#
 def scale_model_parameters(model_params, scale_factor):
-    return [param*scale_factor for param in model_params]
+    pass
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -94,7 +94,7 @@ def scale_model_parameters(model_params, scale_factor):
 #                                                                                               #
 #***********************************************************************************************#
 def add_model_parameters(dst_model_params, src_model_params):
-    return [a + b for a, b in zip(dst_model_params, src_model_params)]
+    pass
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -112,14 +112,14 @@ def average_model_parameters(model_params: dict):
     """
     nr_models = len(model_params)
     model_list = list(model_params.values())
-    model = model_list[0]
+    avg_model = model_list[0]
     
     # add all models
     for i in range(1, nr_models):
-        model = add_model_parameters(model, model_list[i])
+        avg_model += model_list[i]
         
     # scale the summed up models
-    model = scale_model_parameters(model, 1.0 / nr_models)
+    avg_model *= (1.0 / nr_models)
     
     # returnt the averaged model
-    return model
+    return avg_model

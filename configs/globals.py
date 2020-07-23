@@ -43,7 +43,7 @@ def init( ):
     
     # max batches to process before carrying out the syncrhonization
     global MAX_NR_BATCHES
-    MAX_NR_BATCHES = 100
+    MAX_NR_BATCHES = 50
     
     # define if you want the batches to be sampled randomly
     global RANDOM_SAMPLE_BATCHES
@@ -51,11 +51,19 @@ def init( ):
     
     # define the total number of epochs you want to train
     global NUM_EPOCHS
-    NUM_EPOCHS = 10
+    NUM_EPOCHS = 50
 
     # define the initial learning rate to start the training with
     global INITIAL_LR
-    INITIAL_LR = 1e-3
+    INITIAL_LR = 0.01
+    
+    # define the criterion be used
+    global CRITERION
+    CRITERION = "CrossEntropyLoss"
+    
+    # define the optimizer that the workers should use
+    global OPTIMIZER
+    OPTIMIZER = "SGD"
     
     #-------------------------------------------------------------------------------------------#
     #                                                                                           #
