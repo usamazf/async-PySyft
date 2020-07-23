@@ -147,7 +147,7 @@ async def training_handler():
             ])
         print("\nARE THESE THE RESULTS WE WANTED?? ")
         print(results[0][1].shape)
-        print(results[0][2].shape)
+        print(results[0][2])
         # need to add avergae and evaluation requirements here
     
     while True:
