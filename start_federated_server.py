@@ -91,11 +91,9 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     copy_plan.id = train_plan.id
     copy_plan.send(worker)
     
-    print("WORKER FIT STARTED {0}??".format(worker.id))
     # run the async fit method
     task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=["loss", "model_param"])
     result = await task_object        
-    print("WORKER FIT ENDED {0}??".format(worker.id))
 
     # fetch new model
     new_model_params = []
@@ -132,7 +130,7 @@ async def training_handler():
             
         # sample workers based on our logic here
         sampled_workers = [worker[0] for worker in WORKER_LIST] #[WORKER_LIST[0][0]]
-        print("TOTAL WORKERS: ", len(sampled_workers))
+        print("SAMPLED WORKER COUNT: ", len(sampled_workers))
         
         # run the training on all workers
         results = await asyncio.gather(
@@ -148,8 +146,9 @@ async def training_handler():
                 for worker in sampled_workers
             ])
         print("\nARE THESE THE RESULTS WE WANTED?? ")
-        print(results[0])
         print(results[0][1].shape)
+        print(results[0][2].shape)
+        # need to add avergae and evaluation requirements here
     
     while True:
         continue

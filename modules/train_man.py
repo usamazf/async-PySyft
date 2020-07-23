@@ -108,16 +108,6 @@ class TrainingManager:
         if dataset_key not in self.data_info:
             self._create_data_loader(dataset_key=dataset_key)
         
-        # check if iterators need to be created
-        #if self.data_info[dataset_key][1] is None:
-        #    self.data_info[dataset_key][1] = iter(self.data_info[dataset_key][0])
-        
-        # check if iterators need to be reset
-        #if self.data_info[dataset_key][2] < (self.data_info[dataset_key][3]+self.max_nr_batches):
-        #    self.data_info[dataset_key][1] = iter(self.data_info[dataset_key][0])
-        #    self.data_info[dataset_key][3] = 0
-        #    print("Iterator of dataloader reset")
-        
         batches = []
         # sample the required number of batch
         for i in range(self.max_nr_batches):
@@ -129,9 +119,6 @@ class TrainingManager:
                 next_batch = next(self.data_info[dataset_key][1])
             # append the new batch to list
             batches.append(next_batch)
-        
-        # update call count
-        self.data_info[dataset_key][2] += self.max_nr_batches
 
         # return the requested batches
         return batches
@@ -153,6 +140,6 @@ class TrainingManager:
             num_workers=0,
             drop_last=True,
         )
+
         # add it as a local object
-        batch_count = int(len(self.datasets[dataset_key].targets) // self.batch_size)
         self.data_info[dataset_key] = [data_loader, None]
