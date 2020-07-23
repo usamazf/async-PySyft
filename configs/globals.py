@@ -45,6 +45,10 @@ def init( ):
     global MAX_NR_BATCHES
     MAX_NR_BATCHES = 100
     
+    # define if you want the batches to be sampled randomly
+    global RANDOM_SAMPLE_BATCHES
+    RANDOM_SAMPLE_BATCHES = False
+    
     # define the total number of epochs you want to train
     global NUM_EPOCHS
     NUM_EPOCHS = 10

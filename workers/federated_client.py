@@ -15,9 +15,6 @@ import tblib.pickling_support
 import torch
 import websockets
 
-from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
-import numpy as np
-
 import syft as sy
 from syft.generic.abstract.tensor import AbstractTensor
 from syft.workers.virtual import VirtualWorker
@@ -26,6 +23,13 @@ from syft.exceptions import GetNotPermittedError
 from syft.exceptions import ResponseSignatureError
 
 tblib.pickling_support.install()
+
+#-----------------------------------------------------------------------------------------------#
+#                                                                                               #
+#   I M P O R T     L O C A L     L I B R A R I E S   /   F I L E S                             #
+#                                                                                               #
+#-----------------------------------------------------------------------------------------------#
+from modules.train_man import TrainingManager
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -74,8 +78,7 @@ class FederatedWorker(VirtualWorker):
         self.host = host
         self.cert_path = cert_path
         self.key_path = key_path
-        self.datasets = datasets if datasets is not None else dict()
-        self.models = models if models is not None else dict()
+        self.train_manager = TrainingManager(self, datasets, models)
 
         if loop is None:
             loop = asyncio.new_event_loop()
@@ -89,44 +92,6 @@ class FederatedWorker(VirtualWorker):
 
         # call BaseWorker constructor
         super().__init__(hook=hook, id=id, data=data, log_msgs=log_msgs, verbose=verbose)
-
-    def add_dataset(self, dataset, key: str):
-        """Add new dataset to the current federated worker object.
-        Args:
-            dataset: a new dataset instance to be added.
-            key: a unique identifier for the new dataset.
-        """
-        if key not in self.datasets:
-            self.datasets[key] = dataset
-        else:
-            raise ValueError(f"Key {key} already exists in Datasets")
-    
-    def remove_dataset(self, key: str):
-        """Remove a dataset from current federated worker object.
-        Args:
-            key: a unique identifier for the dataset to be removed
-        """
-        if key in self.datasets:
-            del self.datasets[key]
-
-    def add_model(self, model, key: str):
-        """Add new model to the current federated worker object.
-        Args:
-            model: a new model instance to be added.
-            key: a unique identifier for the new model.
-        """
-        if key not in self.models:
-            self.models[key] = model
-        else:
-            raise ValueError(f"Key {key} already exists in Models")
-    
-    def remove_model(self, key: str):
-        """Remove a model from current federated worker object.
-        Args:
-            key: a unique identifier for the model to be removed
-        """
-        if key in self.models:
-            del self.models[key]
 
     async def _consumer_handler(self, websocket: websockets.WebSocketCommonProtocol):
         """This handler listens for messages from WebsocketClientWorker
@@ -194,12 +159,7 @@ class FederatedWorker(VirtualWorker):
             **kwargs:
                 add arguments here
         """
-        self.lr = kwargs["lr"]
-        self.plan_id = kwargs["plan_id"]
-        self.model_id = kwargs["model_id"]
-        self.model_param_id = kwargs["model_param_id"]
-        self.batch_size = kwargs["batch_size"]
-        self.max_nr_batches = kwargs["max_nr_batches"]
+        self.train_manager.setup_configurations(kwargs)
         return "SUCCESS"
     
     def fit(self, dataset_key: str, epoch: int, device: str = "cpu", **kwargs):
@@ -210,33 +170,26 @@ class FederatedWorker(VirtualWorker):
         Returns:
             loss: Training loss on the last batch of training data.
         """
-        if dataset_key not in self.datasets:
-            raise ValueError(f"Dataset {dataset_key} unknown.")
-        
         print("Fitting model on worker {0}".format(self.id))
         
         # get of build requirements
-        train_plan = self.get_obj(self.plan_id)
-        data_loader = self._create_data_loader(dataset_key=dataset_key, shuffle=False)
-        
-        # get the model parameters
-        global_model = self.models[self.model_id]
-        global_params = [param.data for param in global_model.parameters()]
+        local_params = self.train_manager.get_global_model_params()
+        train_plan = self.train_manager.get_train_plan()
+        data_batches = self.train_manager.next_batches(dataset_key=dataset_key)
         
         # get a local copy for training
-        local_model = copy.deepcopy(global_model)
-        local_params = [param.data for param in local_model.parameters()]
+        original_params = copy.deepcopy(local_params)
         
         # local variables for training
         losses = []
         accuracies = []        
         # starting training on all batches (need to modify this later to sample)
-        for batch_idx, (input, targets) in enumerate(data_loader):
-            input = input.view(self.batch_size, -1)
+        for batch_idx, (input, targets) in enumerate(data_batches):
+            input = input.view(self.train_manager.batch_size, -1)
             y_hot = torch.nn.functional.one_hot(targets, 10)
             loss, acc, *local_params = train_plan.torchscript(
-                input, y_hot, torch.tensor(self.batch_size), 
-                torch.tensor(self.lr), local_params
+                input, y_hot, torch.tensor(self.train_manager.batch_size), 
+                torch.tensor(self.train_manager.lr), local_params
             )
             losses.append(loss.item())
             accuracies.append(acc.item())
@@ -247,34 +200,13 @@ class FederatedWorker(VirtualWorker):
         self.register_obj(loss)
         
         # compute change and send it back server
-        difference = [a-b for a,b in zip(local_params,global_params)]
+        difference = [a-b for a,b in zip(local_params,original_params)]
         
         # need to figure out a way to return this difference
         #print(difference)
         
         return None
-    
-    def _create_data_loader(self, dataset_key: str, shuffle: bool = False):
-        """Helper function to create the dataloader as per our requirements
-        """
-        data_range = range(len(self.datasets[dataset_key]))
 
-        # check requirements for data sampling
-        if shuffle:
-            sampler = RandomSampler(data_range)
-        else:
-            sampler = SequentialSampler(data_range)
-        
-        # create the dataloader as per our requirments
-        data_loader = torch.utils.data.DataLoader(
-            self.datasets[dataset_key],
-            batch_size=self.batch_size,
-            sampler=sampler,
-            num_workers=0,
-            drop_last=True,
-        )
-        return data_loader
-    
     def start(self):
         """Start the websocket of the federated worker"""
         # Secure behavior: adds a secure layer applying cryptography and authentication

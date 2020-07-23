@@ -60,7 +60,7 @@ async def connection_handler(websocket, path):
 #   helper fucntions to communicate with client worker.                                         #
 #                                                                                               #
 #***********************************************************************************************#
-async def fit_model_on_worker(worker: FederatedServer, model: nn.Module, train_plan, dataset_key, epoch, kwargs):
+async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan, dataset_key, epoch, kwargs):
     """Send the model to the worker and fit the model on the worker's training data.
     Args:
         worker: Remote location, where the model shall be trained.
@@ -76,10 +76,12 @@ async def fit_model_on_worker(worker: FederatedServer, model: nn.Module, train_p
     # clear all remote objects
     worker.clear_objects_remote()
     
-    # send the model to the worker
-    copy_model = model.copy()
-    copy_model.id = model.id
-    model_ptr = copy_model.send(worker)
+    model_ptrs = []
+    # send the model parameters to the worker
+    for idx, item in enumerate(model_params):
+        item.id = kwargs["model_param_id"]+"_"+worker.id+"_{0}".format(idx)
+        model_ptrs.append(item.send(worker))
+    kwargs["model_tensor_count"] = len(model_params)
     
     # set train configurations on the remote worker
     await worker.set_train_config(**kwargs)
@@ -96,9 +98,12 @@ async def fit_model_on_worker(worker: FederatedServer, model: nn.Module, train_p
     print("WORKER FIT ENDED {0}??".format(worker.id))
 
     # fetch new model
-    new_model = model_ptr.get()
+    new_model_params = []
+    for ptr in model_ptrs:
+        new_model_params.append(ptr.get())
+    
     # return results    
-    return [worker.id, result, new_model] #model, loss
+    return [worker.id, result, new_model_params] #model, loss
     
 #***********************************************************************************************#
 #                                                                                               #
@@ -115,7 +120,7 @@ async def training_handler():
     
     # build model
     model = get_model(model_name=kwargs["model_id"])
-    model.id = kwargs["model_id"]
+    model_params = [param.data for param in model.parameters()]
 
     # get some variable
     epochs = kwargs["epochs"]
@@ -134,7 +139,7 @@ async def training_handler():
             *[
                 fit_model_on_worker(
                     worker=worker,
-                    model=model,
+                    model_params=model_params,
                     train_plan=train_plan,
                     dataset_key=kwargs["dataset_key"],
                     epoch=epoch,

@@ -273,7 +273,6 @@ class FederatedServer(BaseWorker):
             message = self.create_worker_command_message(
                 command_name="fit", return_ids=return_ids, dataset_key=dataset_key, epoch=epoch, device=device
             )
-            print("GOT KONTROL HERE FOR WORKER: " + self.id)
             # Send the message and return the deserialized response.
             serialized_message = sy.serde.serialize(message)
             await websocket.send(str(binascii.hexlify(serialized_message)))

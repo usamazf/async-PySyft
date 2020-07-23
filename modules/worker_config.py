@@ -35,15 +35,15 @@ from configs import globals as glb
 #***********************************************************************************************#
 def setup_worker_config(worker: FederatedWorker, rank: int, world_size: int):
     # create a model
-    model = get_model(model_name=glb.MODEL)
+    #model = get_model(model_name=glb.MODEL)
     # add it to worker's local data
-    worker.add_model(model, key=glb.MODEL)
+    #worker.train_manager.add_model(model, key=glb.MODEL)
     # load dataset
     train_set, _ = load_dataset(dataset=glb.DATASET)
     my_dataset = split_dataset_and_return_mine(dataset=train_set,
                                                rank=rank,
                                                world_size=world_size)
     # add the dataset to local worker
-    worker.add_dataset(my_dataset, key=glb.DATASET_ID)
+    worker.train_manager.add_dataset(my_dataset, key=glb.DATASET_ID)
     # done return from this function
     return
