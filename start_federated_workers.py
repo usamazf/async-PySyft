@@ -54,12 +54,13 @@ async def send_local_info(remote_host, remote_port, worker_list):
 #   helper function to create a list of workers assuming consecutive ports are avialable.       #
 #                                                                                               #
 #***********************************************************************************************#
-def generate_worker_list(suffix_id, worker_host, starting_port, count):
+def generate_worker_list(suffix_id, worker_host, starting_port, count, rank):
     worker_list = []
     for i in range(count):
         worker_list.append([worker_host,
                             starting_port+i,
-                            "{0}_{1}".format(suffix_id, i)
+                            "{0}_{1}_{2}".format(suffix_id, i, rank),
+                            "{0}".format(rank)
                            ])
     return worker_list
 
@@ -69,7 +70,7 @@ def generate_worker_list(suffix_id, worker_host, starting_port, count):
 #   starting websocket server for a given client / worker node. Each now worker has a server.   #
 #                                                                                               #
 #***********************************************************************************************#
-def start_federated_workers(worker_list):
+def start_federated_workers(worker_list, world):
     # create a process call and run all the required workers
     for i, worker in enumerate(worker_list):
         # create server command
@@ -78,8 +79,8 @@ def start_federated_workers(worker_list):
                         "--host", "{0}".format(worker[0]),
                         "--port", "{0}".format(worker[1]),
                         "--id", "{0}".format(worker[2]),
-                        "--rank", "{0}".format(i),
-                        "--world", "{0}".format(len(worker_list))]
+                        "--rank", "{0}".format(worker[3]),
+                        "--world", "{0}".format(world)]
         # run and keep track of worker processes
         PROCESS_LIST.append(subprocess.Popen(process_call))
     # start the server for new client
@@ -111,7 +112,9 @@ if __name__ == "__main__":
     parser.add_argument("--remoteport", type=int, help="port number of federated server, e.g. --port 8778", required=True)
     parser.add_argument("--host", type=str, default="localhost", help="current and local worker's deployment host.")
     parser.add_argument("--port", type=int, help="port number current worker, e.g. --port 8778", required=True)
-    parser.add_argument("--count", type=int, help="number of workers to instantiate, e.g. 5", required=True)
+    parser.add_argument("--count", type=int, help="number of workers to instantiate on this machine, e.g. 5", required=True)
+    parser.add_argument("--rank", type=int, help="the starting rank of workers on this machine", required=True)
+    parser.add_argument("--world", type=int, help="the total number of workers in the entire federation", required=True)
     parser.add_argument("--id", type=str, help="suffix to the name (id) of the websocket workers, e.g. --id vw", required=True)
     args = parser.parse_args()
     
@@ -127,10 +130,10 @@ if __name__ == "__main__":
     websockets_logger.addHandler(logging.StreamHandler())
     
     # create a worker list
-    worker_list = generate_worker_list(args.id, args.host, args.port, args.count)
+    worker_list = generate_worker_list(args.id, args.host, args.port, args.count, args.rank)
     
     # start the required number of workers
-    start_federated_workers(worker_list)
+    start_federated_workers(worker_list, args.world)
     
     # connect to server module and send detailed information
     asyncio.run(send_local_info(args.remotehost, args.remoteport, worker_list))
