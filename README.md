@@ -29,12 +29,17 @@ pip install 'syft[udacity]'
 
 ## Running the code
 
+Running the code has two distinct parts i.e. starting up the server and initiating the clients. Each of these steps are explained below.
+
+### Staring the Federated Server
 First thing we need to do is to run the Federated Server. In order to do so
 we use the following command
 
 ```bash
 python start_federated_server.py --host "host_address" --port "listen_port"
 ```
+
+### Starting the Federated Workers
 
 After the server has successfully started next step it to run the Federated Workers. Let us assume we want to run 10 workers on two machines: Machine 1 
 and Machine 2 with 5 workers each. This can be done using following commands:
