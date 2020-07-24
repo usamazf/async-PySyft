@@ -59,8 +59,8 @@ def generate_worker_list(suffix_id, worker_host, starting_port, count, rank):
     for i in range(count):
         worker_list.append([worker_host,
                             starting_port+i,
-                            "{0}_{1}_{2}".format(suffix_id, i, rank),
-                            "{0}".format(rank)
+                            "{0}_{1}_{2}".format(suffix_id, i, rank+i),
+                            "{0}".format(rank+i)
                            ])
     return worker_list
 
