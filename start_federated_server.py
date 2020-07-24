@@ -88,7 +88,7 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     await worker.set_train_config(**kwargs)
     
     # run the async fit method and fetch results
-    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=["loss", "updated_params"])
+    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_differ_id"]])
     loss, updated_params = await task_object        
 
     # return results    
@@ -114,6 +114,9 @@ def build_training_configurations():
     kwargs["epochs"] = glb.NUM_EPOCHS
     kwargs["criterion"] = glb.CRITERION
     kwargs["optimizer"] = glb.OPTIMIZER
+    kwargs["result_params_id"] = "result_param"
+    kwargs["result_differ_id"] = "result_diff"
+    kwargs["result_losses_id"] = "result_loss"
 
     return kwargs
 
@@ -125,7 +128,7 @@ def build_training_configurations():
 #***********************************************************************************************#
 async def training_handler():
     # yield control to connector class
-    await asyncio.sleep(10)
+    await asyncio.sleep(30)
     
     # build and get the train plan
     #train_plan  = build_and_get_train_plan()
@@ -181,7 +184,8 @@ async def training_handler():
         param_avg = average_model_parameters(upd_wrkr_params)
         
         # unpack the new parameters into local model
-        model_unflatten(model, param_avg)
+        model_params += param_avg
+        model_unflatten(model, model_params)
         
         # evaluate on testset using the new model
         print("Begin Validation @ Epoch {}".format(epoch+1))

@@ -107,19 +107,18 @@ class TrainingManager:
         """
         # register losses array as a local object
         loss = torch.tensor([1,2,3])#losses)
-        loss.id = "loss"
+        loss.id = self.result_losses_id #"loss"
         self.owner.register_obj(loss)
         
         # register updated model as a local object
         updated_params = model_flatten(updated_model)
-        updated_params.id = "updated_params"
+        updated_params.id = self.result_params_id #"updated_params"
         self.owner.register_obj(updated_params)
         
-        # compute change and send it back server
-        #difference = [a-b for a,b in zip(local_params,original_params)]
-        
-        # need to figure out a way to return this difference
-        #print(difference)
+        # compute change and register it for consumption by the server
+        difference = updated_params - (self.owner.get_obj(self.model_param_id))
+        difference.id = self.result_differ_id #"differnce"
+        self.owner.register_obj(difference)
 
     def setup_configurations(self, config_dict: dict):
         """Setup the train configurations sent from the server
@@ -133,6 +132,9 @@ class TrainingManager:
         self.max_nr_batches = config_dict["max_nr_batches"]
         self.criterion = config_dict["criterion"]
         self.optimizer = config_dict["optimizer"]
+        self.result_losses_id = config_dict["result_losses_id"]
+        self.result_params_id = config_dict["result_params_id"]
+        self.result_differ_id = config_dict["result_differ_id"]
     
     def next_batches(self, dataset_key: str):
         """Return next set of batches for training.
