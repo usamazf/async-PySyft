@@ -88,7 +88,7 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
     await worker.set_train_config(**kwargs)
     
     # run the async fit method and fetch results
-    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_differ_id"]])
+    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
     loss, updated_params = await task_object        
 
     # return results    
@@ -184,8 +184,8 @@ async def training_handler():
         param_avg = average_model_parameters(upd_wrkr_params)
         
         # unpack the new parameters into local model
-        model_params += param_avg
-        model_unflatten(model, model_params)
+        #model_params -= param_avg
+        model_unflatten(model, param_avg)
         
         # evaluate on testset using the new model
         print("Begin Validation @ Epoch {}".format(epoch+1))
