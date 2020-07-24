@@ -41,12 +41,12 @@ and Machine 2 with 5 workers each. This can be done using following commands:
 
 #### Machine 1:
 ```bash
-python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "server_1_ip" --port "starting_listen_port" --count 5 --rank 0 --world 10 --id "worker_id_prefix"
+python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "machine_1_ip" --port "starting_listen_port" --count 5 --rank 0 --world 10 --id "worker_id_prefix"
 ```
 
 #### Machine 2:
 ```bash
-python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "server_2_ip" --port "starting_listen_port" --count 5 --rank 5 --world 10 --id "worker_id_prefix"
+python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "machine_2_ip" --port "starting_listen_port" --count 5 --rank 5 --world 10 --id "worker_id_prefix"
 ```
 
 #### Explanation:
@@ -54,8 +54,8 @@ python start_federated_workers.py --remotehost "server_ip_address" --remoteport 
 The above commands with run 5 workers each on Machine 1 and Machine 2. Machine 1 will have workers with ranks 0-4 and Machine 2 will have workers with rank 5-9.
 
 > **_NOTE:_**
-> The world size (--world flag) should always be the total number of workers among all machines combined. The starting rank (--rank flag) should always be exclusive and continuous
-list of workers
+> The world size (--world flag) should always be the total number of workers across all machines. The starting rank (--rank flag) should always be exclusive and continuous
+list of workers.
 
 
 
