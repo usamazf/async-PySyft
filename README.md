@@ -36,25 +36,26 @@ we use the following command
 python start_federated_server.py --host "host_address" --port "listen_port"
 ```
 
-After the server has successfully started next step it to run the Federated Workers. Let us assume we want to run 10 workers on two Servers: Server 1 
-and Server 2 with 5 workers each. This can be done using following commands:
+After the server has successfully started next step it to run the Federated Workers. Let us assume we want to run 10 workers on two machines: Machine 1 
+and Machine 2 with 5 workers each. This can be done using following commands:
 
-### Server 1:
+#### Machine 1:
 ```bash
 python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "server_1_ip" --port "starting_listen_port" --count 5 --rank 0 --world 10 --id "worker_id_prefix"
 ```
 
-### Server 2:
+#### Machine 2:
 ```bash
 python start_federated_workers.py --remotehost "server_ip_address" --remoteport "server_listen_port" --host "server_2_ip" --port "starting_listen_port" --count 5 --rank 5 --world 10 --id "worker_id_prefix"
 ```
 
-### Explanation:
+#### Explanation:
 
-The above commands with run 5 workers each on Server 1 and Server 2. Server 1 will have workers with ranks 0-4 and Server 2 will have workers with rank 5-9.
+The above commands with run 5 workers each on Machine 1 and Machine 2. Machine 1 will have workers with ranks 0-4 and Machine 2 will have workers with rank 5-9.
 
 > **_NOTE:_**
-> The world size should always be the total number of workers among all servers combined.
+> The world size (--world flag) should always be the total number of workers among all machines combined. The starting rank (--rank flag) should always be exclusive and continuous
+list of workers
 
 
 
