@@ -123,3 +123,25 @@ def average_model_parameters(model_params: dict):
     
     # returnt the averaged model
     return avg_model
+
+#***********************************************************************************************#
+#                                                                                               #
+#   Description:                                                                                #
+#   utility function to sampled workers from given worker list.                                 #
+#                                                                                               #
+#***********************************************************************************************#
+def sample_workers(worker_list, n_workers=-1):
+    # worker_list = [worker_ptr, worker_id, worker_host, worker_port]
+    # empty lists to store results
+    sampled_worker_objects = []
+    sampled_worker_info = []
+    # sample all workers
+    if n_workers==-1:
+        for idx, worker in enumerate(worker_list):
+            sampled_worker_objects.append(worker[0])
+            sampled_worker_info.append([idx, worker[1], worker[2], worker[3]])  #[sample_id, worker_id, host, port]
+    # need to implement sampling to given number of workers
+    else:
+        pass
+    # return the requested lists
+    return sampled_worker_objects, sampled_worker_info

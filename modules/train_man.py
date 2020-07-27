@@ -9,13 +9,16 @@ import torch.optim as optim
 from torch.utils.data import RandomSampler, SequentialSampler
 import numpy as np
 
+import syft as sy
+from syft.messaging.message import ObjectRequestMessage
+
 #-----------------------------------------------------------------------------------------------#
 #                                                                                               #
 #   I M P O R T     L O C A L     L I B R A R I E S   /   F I L E S                             #
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
+from workers import FederatedWorkerPointer
 from utils.utils import model_flatten, model_unflatten, AverageMeter
-
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -100,40 +103,29 @@ class TrainingManager:
             optimizer = optim.SGD(model.parameters(), lr=0.0001)
         
         return optimizer
-        
-    def store_training_results(self, updated_model, losses):
-        """Store the training results as local objects
-        """
-        # register losses array as a local object
-        loss = torch.tensor([1,2,3])#losses)
-        loss.id = self.result_losses_id #"loss"
-        self.owner.register_obj(loss)
-        
-        # register updated model as a local object
-        updated_params = model_flatten(updated_model)
-        updated_params.id = self.result_params_id #"updated_params"
-        self.owner.register_obj(updated_params)
-        
-        # compute change and register it for consumption by the server
-        difference = updated_params - (self.owner.get_obj(self.model_param_id))
-        difference.id = self.result_differ_id #"differnce"
-        self.owner.register_obj(difference)
 
     def setup_configurations(self, config_dict: dict):
         """Setup the train configurations sent from the server
         """
+        # training related information
         self.lr = config_dict["lr"]
-        self.plan_id = config_dict["plan_id"]
-        self.model_id = config_dict["model_id"]
-        self.model_param_id = config_dict["model_param_id"]
         self.batch_size = config_dict["batch_size"]
         self.random_sample = config_dict["random_sample"]
         self.max_nr_batches = config_dict["max_nr_batches"]
         self.criterion = config_dict["criterion"]
         self.optimizer = config_dict["optimizer"]
+        
+        # local storage object related information
+        self.plan_id = config_dict["plan_id"]
+        self.model_id = config_dict["model_id"]
+        self.model_param_id = config_dict["model_param_id"]
         self.result_losses_id = config_dict["result_losses_id"]
         self.result_params_id = config_dict["result_params_id"]
         self.result_differ_id = config_dict["result_differ_id"]
+        
+        # worker related sampling information
+        self.fellow_workers = config_dict["sampled_workers"] #[sample_id, worker_id, host, port]
+        self.self_sample_id = config_dict["sampled_worker_id"]
     
     def next_batches(self, dataset_key: str):
         """Return next set of batches for training.
@@ -182,3 +174,78 @@ class TrainingManager:
 
         # add it as a local object
         self.data_info[dataset_key] = [data_loader, None]
+        
+    def store_training_results(self, updated_model, losses):
+        """Store the training results as local objects
+        """
+        # register losses array as a local object
+        loss = torch.tensor([1,2,3])#losses)
+        loss.id = self.result_losses_id #"loss"
+        self.owner.register_obj(loss)
+        
+        # register updated model as a local object
+        updated_params = model_flatten(updated_model)
+        updated_params.id = self.result_params_id #"updated_params"
+        self.owner.register_obj(updated_params)
+        
+        # compute change and register it for consumption by the server
+        difference = updated_params - (self.owner.get_obj(self.model_param_id))
+        difference.id = self.result_differ_id #"differnce"
+        self.owner.register_obj(difference)
+
+        
+    def additive_secret_sharing(self, updated_model, losses):
+        """Apply additive secrete sharing techniques to carry out model average
+        """
+        # register losses array as a local object
+        #loss = torch.tensor([1,2,3])#losses)
+        #loss.id = self.result_losses_id #"loss"
+        #self.owner.register_obj(loss)
+        
+        # register updated model as a local object
+        updated_params = model_flatten(updated_model)
+
+        # register updated model as a local object
+        updated_params = model_flatten(updated_model)
+        updated_params.id = self.result_params_id #"updated_params"
+        self.owner.register_obj(updated_params)
+
+        # chunk and store split parts locally
+        self_chunk = None
+        for idx, chunk in enumerate(updated_params.chunk(len(self.fellow_workers))):
+            cloned_chunk = chunk.clone().detach()
+            cloned_chunk.id = "chunk_{0}".format(idx)
+            if idx==self.self_sample_id:
+                self_chunk = cloned_chunk
+            else:
+                self.owner.register_obj(cloned_chunk)
+        
+        # list to retrieve results into
+        chunk_list = []
+        
+        # retrieve chunks from other workers
+        for sample_id, worker_id, host, port in self.fellow_workers:
+            # skip if self
+            if self.self_sample_id==sample_id:
+                continue
+            # create a connection
+            kwargs_websocket = {"host": host, "hook": self.owner.hook, "verbose": False}
+            client_ptr = FederatedWorkerPointer(id=worker_id, port=int(port), **kwargs_websocket)
+            
+            # fetch desired chunk
+            msg = ObjectRequestMessage("chunk_{0}".format(self.self_sample_id), None, "")
+            serialized_message = sy.serde.serialize(msg)
+            chunk_recvd = sy.serde.deserialize(client_ptr._send_msg(serialized_message))
+            
+            # append the fetched chunk to the local list
+            chunk_list.append(chunk_recvd)
+        
+        # carry out a sum / average of the all the chunks fetched with local chunk
+        for recv_chunk in chunk_list:
+            self_chunk.add_(recv_chunk)
+        
+        self_chunk.div_(len(chunk_list)+1)
+        
+        # store the final results locally to be fetched by the server
+        self_chunk.id = "final_chunk_{0}".format(self.self_sample_id)
+        self.owner.register_obj(cloned_chunk)

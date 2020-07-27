@@ -200,7 +200,8 @@ class FederatedWorker(VirtualWorker):
             losses.append(loss)
         
         # store all the results so that they can requested back by the server
-        self.train_manager.store_training_results(model, losses)
+        #self.train_manager.store_training_results(model, losses)
+        self.train_manager.additive_secret_sharing(model, losses)
         
         return None
 

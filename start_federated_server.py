@@ -26,7 +26,7 @@ from modules.model_loader import get_model
 from modules.data_loader import load_dataset
 from modules.validate import validate
 #from modules.training_plan import build_and_get_train_plan
-from utils.utils import average_model_parameters, model_flatten, model_unflatten
+from utils.utils import average_model_parameters, model_flatten, model_unflatten, sample_workers
 from configs import globals as glb
 
 #-----------------------------------------------------------------------------------------------#
@@ -34,7 +34,7 @@ from configs import globals as glb
 #   Define global parameters.                                                                   #
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
-WORKER_LIST = []
+WORKER_LIST = [] #[worker_ptr, worker_id, worker_host, worker_port]
     
 #***********************************************************************************************#
 #                                                                                               #
@@ -90,12 +90,16 @@ async def fit_model_on_worker(worker_ptr: FederatedWorkerPointer, model_params, 
     # set train configurations on the remote worker
     await worker_ptr.set_train_config(**kwargs)
     
-    # run the async fit method and fetch results
-    task_object = worker_ptr.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
-    loss, updated_params = await task_object        
+    # run the async fit method and fetch results normally
+    #task_object = worker_ptr.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
+    #loss, updated_params = await task_object
+    
+    # run the async fit and fetch results via additive secret sharing technique
+    task_object = worker_ptr.async_fit_add_sec_share(dataset_key=dataset_key, epoch=epoch, return_ids=["final_chunk_{0}".format(sampled_id)])
+    loss, updated_chunk = await task_object        
 
     # return results    
-    return worker_ptr.id, loss, updated_params
+    return worker_ptr.id, loss, updated_chunk
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -158,8 +162,9 @@ async def training_handler():
         print("\n\nRunning epoch {0} of {1}".format(epoch+1, epochs))
             
         # sample workers based on our logic here
-        sampled_workers = [worker[0] for worker in WORKER_LIST] #[WORKER_LIST[0][0]]
-        print("Sampled worker count: ", len(sampled_workers))
+        sampled_ptr, sampled_info = sample_workers(WORKER_LIST)
+        kwargs["sampled_workers"] = sampled_info
+        print("Sampled worker count: ", len(sampled_ptr))
         
         # extract latest model parameters
         model_params = model_flatten(model)
@@ -176,20 +181,28 @@ async def training_handler():
                     sampled_id=idx,
                     kwargs=kwargs,
                 )
-                for idx, worker in enumerate(sampled_workers)
+                for idx, worker in enumerate(sampled_ptr)
             ])
         
         # extract from all workers the updated model parameters
-        upd_wrkr_params = {}
-        for worker_id, loss, updated_params in results:
-            upd_wrkr_params[worker_id] = updated_params
+        #upd_wrkr_params = {}
+        #for worker_id, loss, updated_params in results:
+        #    upd_wrkr_params[worker_id] = updated_params
+        
+        # get chunks and append them to create a new tensor
+        wrkr_chunks = []
+        for worker_id, loss, chunk in results:
+            wrkr_chunks.append(chunk)
+        
+        # create new tensor
+        updated_model_final = torch.cat(wrkr_chunks)
         
         # get the parameter average
-        param_avg = average_model_parameters(upd_wrkr_params)
+        #updated_model_final = average_model_parameters(upd_wrkr_params)
         
         # unpack the new parameters into local model
         #model_params -= param_avg
-        model_unflatten(model, param_avg)
+        model_unflatten(model, updated_model_final)
         
         # evaluate on testset using the new model
         print("Begin Validation @ Epoch {}".format(epoch+1))
