@@ -1,3 +1,3 @@
-from .federated_client import FederatedWorker
-from .federated_server import FederatedServer
+from .client import FederatedWorker
+from .client_pointer import FederatedWorkerPointer
 

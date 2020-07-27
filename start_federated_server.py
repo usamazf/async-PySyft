@@ -21,7 +21,7 @@ hook = sy.TorchHook(torch)
 #   I M P O R T     L O C A L     L I B R A R I E S   /   F I L E S                             #
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
-from workers import FederatedServer
+from workers import FederatedWorkerPointer
 from modules.model_loader import get_model
 from modules.data_loader import load_dataset
 from modules.validate import validate
@@ -53,9 +53,9 @@ async def connection_handler(websocket, path):
     kwargs_websocket = {"host": worker_host, "hook": hook, "verbose": True}
     time.sleep(5)
     # create new instance of the websocket server object
-    remote_client = FederatedServer(id=worker_id, port=int(worker_port), **kwargs_websocket)
+    remote_client_ptr = FederatedWorkerPointer(id=worker_id, port=int(worker_port), **kwargs_websocket)
     # update the local dictionary
-    WORKER_LIST.append([remote_client, worker_id, worker_host, int(worker_port)])
+    WORKER_LIST.append([remote_client_ptr, worker_id, worker_host, int(worker_port)])
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -63,10 +63,10 @@ async def connection_handler(websocket, path):
 #   helper fucntions to communicate with client worker.                                         #
 #                                                                                               #
 #***********************************************************************************************#
-async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan, dataset_key, epoch, kwargs):
+async def fit_model_on_worker(worker_ptr: FederatedWorkerPointer, model_params, train_plan, dataset_key, epoch, sampled_id, kwargs):
     """Send the model to the worker and fit the model on the worker's training data.
     Args:
-        worker: Remote location, where the model shall be trained.
+        worker_ptr: Remote location, where the model shall be trained.
         model: Batch size of each training step.
         train_plan: Model which shall be trained.
         epoch: current epoch being run
@@ -77,22 +77,25 @@ async def fit_model_on_worker(worker: FederatedServer, model_params, train_plan,
             * loss: Loss on last training batch, torch.tensor.
     """
     # clear all remote objects
-    worker.clear_objects_remote()
+    worker_ptr.clear_objects_remote()
+    
+    # setup sampled worker id to kwargs
+    kwargs["sampled_worker_id"] = sampled_id
     
     # send the fresh model parameters
     model_params_copy = model_params.clone().detach()
     model_params_copy.id = kwargs["model_param_id"]
-    ptr_model = model_params_copy.send(worker)
+    ptr_model = model_params_copy.send(worker_ptr)
     
     # set train configurations on the remote worker
-    await worker.set_train_config(**kwargs)
+    await worker_ptr.set_train_config(**kwargs)
     
     # run the async fit method and fetch results
-    task_object = worker.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
+    task_object = worker_ptr.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
     loss, updated_params = await task_object        
 
     # return results    
-    return worker.id, loss, updated_params
+    return worker_ptr.id, loss, updated_params
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -165,14 +168,15 @@ async def training_handler():
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(
-                    worker=worker,
+                    worker_ptr=worker,
                     model_params=model_params,
                     train_plan=train_plan,
                     dataset_key=glb.DATASET_ID,
                     epoch=epoch,
+                    sampled_id=idx,
                     kwargs=kwargs,
                 )
-                for worker in sampled_workers
+                for idx, worker in enumerate(sampled_workers)
             ])
         
         # extract from all workers the updated model parameters

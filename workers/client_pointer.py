@@ -41,7 +41,7 @@ TIMEOUT_INTERVAL = 60
 #   class that implements the logic for Federated Server corresponding to worker nodes.         #
 #                                                                                               #
 #***********************************************************************************************#
-class FederatedServer(BaseWorker):
+class FederatedWorkerPointer(BaseWorker):
     def __init__(
         self,
         hook,

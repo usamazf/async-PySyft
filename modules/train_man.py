@@ -24,7 +24,6 @@ from utils.utils import model_flatten, model_unflatten, AverageMeter
 #                                                                                               #
 #***********************************************************************************************#
 class TrainingManager:
-
     def __init__(self, worker, datasets, models):
         # setup information sent by the federated worker
         self.owner = worker
