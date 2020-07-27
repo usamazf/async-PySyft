@@ -194,7 +194,7 @@ class TrainingManager:
         self.owner.register_obj(difference)
 
         
-    def additive_secret_sharing(self, updated_model, losses):
+    async def additive_secret_sharing(self, updated_model, losses):
         """Apply additive secrete sharing techniques to carry out model average
         """
         # register losses array as a local object
@@ -214,14 +214,16 @@ class TrainingManager:
         self_chunk = None
         for idx, chunk in enumerate(updated_params.chunk(len(self.fellow_workers))):
             cloned_chunk = chunk.clone().detach()
-            cloned_chunk.id = "chunk_{0}".format(idx)
             if idx==self.self_sample_id:
                 self_chunk = cloned_chunk
             else:
+                cloned_chunk.id = "chunk_{0}".format(idx)
                 self.owner.register_obj(cloned_chunk)
         
         # list to retrieve results into
         chunk_list = []
+        
+        print("# definitely exiting from here 0")
         
         # retrieve chunks from other workers
         for sample_id, worker_id, host, port in self.fellow_workers:
@@ -239,13 +241,21 @@ class TrainingManager:
             
             # append the fetched chunk to the local list
             chunk_list.append(chunk_recvd)
-        
+
+        print("# definitely exiting from here 1")
+
         # carry out a sum / average of the all the chunks fetched with local chunk
         for recv_chunk in chunk_list:
             self_chunk.add_(recv_chunk)
         
         self_chunk.div_(len(chunk_list)+1)
+
+        print("# definitely exiting from here 2")
+
         
         # store the final results locally to be fetched by the server
         self_chunk.id = "final_chunk_{0}".format(self.self_sample_id)
-        self.owner.register_obj(cloned_chunk)
+        self.owner.register_obj(self_chunk)
+        
+        print("# definitely exiting from here 3")
+

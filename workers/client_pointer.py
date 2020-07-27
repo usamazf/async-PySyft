@@ -98,7 +98,11 @@ class FederatedWorkerPointer(WebsocketClientWorker):
 
         # Reopen the standard connection
         self.connect()
-
+        
+        print("\n\n\n\n\nwe were definitely here")
+        print(self.list_objects_remote())
+        print("\n\n\n\n\n")
+        
         # Send an object request message to retrieve the result tensor of the fit() method
         msg = ObjectRequestMessage(return_ids[0], None, "")
         serialized_message = sy.serde.serialize(msg)

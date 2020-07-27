@@ -5,12 +5,14 @@
 #-----------------------------------------------------------------------------------------------#
 import torch
 import syft as sy
+import asyncio
 
 from typing import Union
 from typing import List
 
 from syft.workers.websocket_server import WebsocketServerWorker
 from syft.generic.abstract.tensor import AbstractTensor
+from syft.messaging.message import WorkerCommandMessage
 
 #-----------------------------------------------------------------------------------------------#
 #                                                                                               #
@@ -78,6 +80,50 @@ class FederatedWorker(WebsocketServerWorker):
                          key_path=key_path,
                         )
     
+    
+    def recv_msg(self, bin_message: bin) -> bin:
+        """Implements the logic to receive messages.
+        Capture the message chain to determine if the call is for fit function.
+        If so handles it by itself otherwise returns the control back to parent call function.
+        Args:
+            bin_message: A binary serialized message.
+        Returns:
+            A binary message response.
+        """
+        # Step 0: deserialize message
+        msg = sy.serde.deserialize(bin_message, worker=self)
+        
+        # Step 1: call base class recv_msg if not fit request
+        if not (isinstance(msg, WorkerCommandMessage) and msg.command_name=="fit"):
+            return super().recv_msg(bin_message=bin_message)
+
+        # Step 2: save message and/or log it out
+        if self.log_msgs:
+            self.msg_history.append(msg)
+
+        if self.verbose:
+            print(
+                f"worker {self} received {type(msg).__name__} {msg.contents}"
+                if hasattr(msg, "contents")
+                else f"worker {self} received {type(msg).__name__}"
+            )
+
+        # Step 3: route message to appropriate function
+        response = None
+        for handler in self.message_handlers:
+            if handler.supports(msg):
+                response = handler.handle(msg)
+                break
+        
+        # Step 4: Serialize the message to simple python objects
+        if asyncio.iscoroutine(response):
+            print("\n\n\n\n\nHELL YEAH MATHA FAKKA\n\n\n\n\n")
+            bin_response = sy.serde.serialize(None, worker=self)
+        else:
+            bin_response = sy.serde.serialize(response, worker=self)
+
+        return bin_response
+
     def set_train_config(self, **kwargs):
         """Set the training configuration in to the trainconfig object
         Args:
@@ -127,6 +173,25 @@ class FederatedWorker(WebsocketServerWorker):
         
         # store all the results so that they can requested back by the server
         #self.train_manager.store_training_results(model, losses)
-        self.train_manager.additive_secret_sharing(model, losses)
+        
+        #asyncio.set_event_loop(self.loop)
+        #loop = asyncio.get_event_loop()
+        
+        asyncio.set_event_loop(self.loop)
+        
+        add_task = asyncio.create_task(
+            self.train_manager.additive_secret_sharing(model, losses)
+        )
+        
+        while not add_task.done():
+            continue
+        
+        
+        #asyncio.get_event_loop().run_until_complete(
+        #    self.train_manager.additive_secret_sharing(model, losses)
+        #)
+        
+        #await additive_share
+        #self.train_manager.additive_secret_sharing(model, losses)
         
         return None
