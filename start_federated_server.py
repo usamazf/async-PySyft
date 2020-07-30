@@ -7,6 +7,7 @@ import asyncio
 import websockets
 import argparse
 import time
+from timeit import default_timer as timer
 
 import torch
 import torch.nn as nn
@@ -152,6 +153,8 @@ async def training_handler():
     # get some variable
     epochs = glb.NUM_EPOCHS
     
+    start = timer()
+    print(f"\nStarting the Training Process for {epochs} epochs\n")
     # iterate over the workers
     for epoch in range(epochs):
         # print log message
@@ -165,6 +168,7 @@ async def training_handler():
         model_params = model_flatten(model)
         
         # run the training on all workers
+        start_timer_epoch = timer()
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(
@@ -178,6 +182,10 @@ async def training_handler():
                 )
                 for idx, worker in enumerate(sampled_workers)
             ])
+        end_timer_epoch = timer()
+
+        print(f"Epoch: {epoch}\nTime to train and await gradients for {len(sampled_workers)} workers: {(end_timer_epoch-start_timer_epoch):3f}s")
+
         
         # extract from all workers the updated model parameters
         upd_wrkr_params = {}
@@ -195,9 +203,10 @@ async def training_handler():
         print("Begin Validation @ Epoch {}".format(epoch+1))
         val_loss, prec1 = validate(test_loader, model, criterion)
         
-    while True:
-        continue
-
+    #while True:
+    #   continue
+    end = timer()
+    print(f"Total Training Time for {epochs} epochs: {(end-start):3f} seconds")
 #***********************************************************************************************#
 #                                                                                               #
 #   description:                                                                                #

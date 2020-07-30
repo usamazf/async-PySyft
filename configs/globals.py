@@ -51,7 +51,7 @@ def init( ):
     
     # define the total number of epochs you want to train
     global NUM_EPOCHS
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 20
 
     # define the initial learning rate to start the training with
     global INITIAL_LR

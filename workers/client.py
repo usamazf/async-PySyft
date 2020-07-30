@@ -5,6 +5,7 @@
 #-----------------------------------------------------------------------------------------------#
 import torch
 import syft as sy
+from timeit import default_timer as timer
 
 from typing import Union
 from typing import List
@@ -96,7 +97,7 @@ class FederatedWorker(WebsocketServerWorker):
             loss: Training loss on the last batch of training data.
         """
         print("Fitting model on worker {0}".format(self.id))
-        
+        start_fit_time = timer()
         # get model and it's respective parameters
         model = self.train_manager.get_global_model()
         
@@ -125,6 +126,8 @@ class FederatedWorker(WebsocketServerWorker):
             # update local stores
             losses.append(loss)
         
+        end_fit_time =timer()
+        print(f'Time to train 1 epoch on worker XXX')
         # store all the results so that they can requested back by the server
         self.train_manager.store_training_results(model, losses)
         

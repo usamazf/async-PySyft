@@ -65,8 +65,8 @@ def MNIST_dataset(loaders: bool=False):
                                    ])
 
     # Initialize Datasets. MNIST will automatically download if not present
-    trainset = dt.MNIST(root='./data/mnist', train=True,download=False, transform=transform)
-    testset = dt.MNIST(root='./data/mnist', train=False,download=False, transform=transform)
+    trainset = dt.MNIST(root='./data/mnist', train=True,download=True, transform=transform)
+    testset = dt.MNIST(root='./data/mnist', train=False,download=True, transform=transform)
     
     if loaders:
         # create train_loader and test_loader if requested

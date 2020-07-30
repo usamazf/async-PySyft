@@ -110,3 +110,6 @@ class FederatedWorkerPointer(WebsocketClientWorker):
         
         # Return the deserialized response.
         return sy.serde.deserialize(loss), sy.serde.deserialize(updated_params)
+
+
+
