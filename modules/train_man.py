@@ -15,7 +15,7 @@ import numpy as np
 #                                                                                               #
 #-----------------------------------------------------------------------------------------------#
 from utils.utils import model_flatten, model_unflatten, AverageMeter
-
+from modules.optim_creator import get_optimizer
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -96,10 +96,7 @@ class TrainingManager:
     def get_optimizer(self, model):
         """Decide which optimizer is required and build it
         """
-        if self.optimizer == "SGD":
-            optimizer = optim.SGD(model.parameters(), lr=0.0001)
-        
-        return optimizer
+        return get_optimizer(model, optim_name=self.optimizer, lr=self.lr, dp=self.diff_privacy)
         
     def store_training_results(self, updated_model, losses):
         """Store the training results as local objects
@@ -131,6 +128,7 @@ class TrainingManager:
         self.max_nr_batches = config_dict["max_nr_batches"]
         self.criterion = config_dict["criterion"]
         self.optimizer = config_dict["optimizer"]
+        self.diff_privacy = config_dict["diff_privacy"]
         self.result_losses_id = config_dict["result_losses_id"]
         self.result_params_id = config_dict["result_params_id"]
         self.result_differ_id = config_dict["result_differ_id"]
@@ -153,7 +151,7 @@ class TrainingManager:
                 next_batch = next(self.data_info[dataset_key][1])
             except:
                 # need to reset the iterator and get new batch
-                print("Resetting Train Loader {0}\n".format(self.owner.id))
+                #print("Resetting Train Loader {0}\n".format(self.owner.id))
                 self.data_info[dataset_key][1] = iter(self.data_info[dataset_key][0])
                 next_batch = next(self.data_info[dataset_key][1])
             # append the new batch to list

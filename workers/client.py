@@ -96,8 +96,12 @@ class FederatedWorker(WebsocketServerWorker):
         Returns:
             loss: Training loss on the last batch of training data.
         """
+        # print a log message
         print("Fitting model on worker {0}".format(self.id))
+        
+        # note starting time of the epoch
         start_fit_time = timer()
+        
         # get model and it's respective parameters
         model = self.train_manager.get_global_model()
         
@@ -126,8 +130,12 @@ class FederatedWorker(WebsocketServerWorker):
             # update local stores
             losses.append(loss)
         
-        end_fit_time =timer()
-        print(f'Time to train 1 epoch on worker XXX')
+        # note the end time of the epoch
+        end_fit_time = timer()
+        
+        # print a log message
+        print(f'Time to train 1 epoch on worker {self.id}: {(end_fit_time-start_fit_time):3f}s')
+        
         # store all the results so that they can requested back by the server
         self.train_manager.store_training_results(model, losses)
         

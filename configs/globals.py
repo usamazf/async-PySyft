@@ -65,6 +65,10 @@ def init( ):
     global OPTIMIZER
     OPTIMIZER = "SGD"
     
+    # whether to use differential privacy or not
+    global USE_DP
+    USE_DP = False
+    
     #-------------------------------------------------------------------------------------------#
     #                                                                                           #
     #   Define process related information to be used by the program.                           #
@@ -74,13 +78,3 @@ def init( ):
     # define the manual seed for common model initializations.
     global MANUAL_SEED
     MANUAL_SEED = 42        
-    
-    # other process information about current process.
-    #global GLOBAL_RANK
-    #GLOBAL_RANK = global_rank
-    
-    #global LOCAL_RANK
-    #LOCAL_RANK = local_rank
-    
-    #global WORLD_SIZE 
-    #WORLD_SIZE = world_size

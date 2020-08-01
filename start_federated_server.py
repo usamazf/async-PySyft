@@ -118,6 +118,7 @@ def build_training_configurations():
     kwargs["epochs"] = glb.NUM_EPOCHS
     kwargs["criterion"] = glb.CRITERION
     kwargs["optimizer"] = glb.OPTIMIZER
+    kwargs["diff_privacy"] = glb.USE_DP
     kwargs["result_params_id"] = "result_param"
     kwargs["result_differ_id"] = "result_diff"
     kwargs["result_losses_id"] = "result_loss"
@@ -207,6 +208,7 @@ async def training_handler():
     #   continue
     end = timer()
     print(f"Total Training Time for {epochs} epochs: {(end-start):3f} seconds")
+
 #***********************************************************************************************#
 #                                                                                               #
 #   description:                                                                                #
@@ -224,7 +226,7 @@ if __name__ == '__main__':
     start_server = websockets.serve(connection_handler, args.host, args.port)
     
     # run forever
-    print("REACHED THIS POINT, NOW WAITING FOR WORKERS")
+    print("REACHED THIS POINT, NOW WAITING FOR WORKER CONNECTION")
     
     # create a forever running event loop
     asyncio.get_event_loop().run_until_complete(start_server)
