@@ -63,8 +63,9 @@ The above commands will run 5 workers each on Machine 1 and Machine 2. Machine 1
 list of workers.
 
 ## Acknowledgements
-The multiple model and batch gradient computations are from the repo here: https://github.com/owkin/grad-cnns
-The training implementation for differential privacy based models etc. were inspired from the repo here: https://github.com/heyyjudes/dp-sgd
+1) The multiple model and batch gradient computations are from the repo here: https://github.com/owkin/grad-cnns
+
+2) The training implementation for differential privacy based models etc. were inspired from the repo here: https://github.com/heyyjudes/dp-sgd
 
 
 
