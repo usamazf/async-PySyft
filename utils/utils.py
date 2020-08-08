@@ -27,6 +27,25 @@ def model_unflatten(model, vec):
 
 #***********************************************************************************************#
 #                                                                                               #
+#   Description:                                                                                #
+#   flatten and unflatten the gradients of the model or into the model.                         #
+#                                                                                               #
+#***********************************************************************************************#
+def model_grad_flatten(model):
+    vec = []
+    for param in model.parameters():
+        vec.append(param.grad.view(-1))
+    return torch.cat(vec)
+
+def model_grad_unflatten(model, vec):
+    pointer = 0
+    for param in model.parameters():
+        num_param = torch.prod(torch.LongTensor(list(param.size())))
+        param.grad = vec[pointer:pointer + num_param].view(param.size())
+        pointer += num_param
+        
+#***********************************************************************************************#
+#                                                                                               #
 #   description:                                                                                #
 #   utility class to help assist the overall program with averaging, sum etc.                   #
 #                                                                                               #

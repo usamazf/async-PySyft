@@ -64,13 +64,13 @@ async def connection_handler(websocket, path):
 #   helper fucntions to communicate with client worker.                                         #
 #                                                                                               #
 #***********************************************************************************************#
-async def fit_model_on_worker(worker_ptr: FederatedWorkerPointer, model_params, train_plan, dataset_key, epoch, sampled_id, kwargs):
+async def fit_model_on_worker(worker_ptr: FederatedWorkerPointer, model_params, train_plan, dataset_key, iteration, sampled_id, kwargs):
     """Send the model to the worker and fit the model on the worker's training data.
     Args:
         worker_ptr: Remote location, where the model shall be trained.
         model: Batch size of each training step.
         train_plan: Model which shall be trained.
-        epoch: current epoch being run
+        iteration: current iteration being run
     Returns:
         A tuple containing:
             * worker_id: Union[int, str], id of the worker.
@@ -92,11 +92,11 @@ async def fit_model_on_worker(worker_ptr: FederatedWorkerPointer, model_params, 
     await worker_ptr.set_train_config(**kwargs)
     
     # run the async fit method and fetch results
-    task_object = worker_ptr.async_fit(dataset_key=dataset_key, epoch=epoch, return_ids=[kwargs["result_losses_id"], kwargs["result_params_id"]])
-    loss, updated_params = await task_object        
-
+    task_object = worker_ptr.async_fit(dataset_key=dataset_key, iteration=iteration, return_ids=[kwargs["result_losses_id"], kwargs["result_differ_id"]])
+    loss, worker_update = await task_object
+    
     # return results    
-    return worker_ptr.id, loss, updated_params
+    return worker_ptr.id, loss, worker_update
 
 #***********************************************************************************************#
 #                                                                                               #
@@ -115,7 +115,7 @@ def build_training_configurations():
     kwargs["random_sample"] = glb.RANDOM_SAMPLE_BATCHES
     kwargs["max_nr_batches"] = glb.MAX_NR_BATCHES
     kwargs["dataset_key"] = glb.DATASET_ID
-    kwargs["epochs"] = glb.NUM_EPOCHS
+    #kwargs["iterations"] = glb.NUM_ITERS
     kwargs["criterion"] = glb.CRITERION
     kwargs["optimizer"] = glb.OPTIMIZER
     kwargs["diff_privacy"] = glb.USE_DP
@@ -152,14 +152,14 @@ async def training_handler():
     _, test_loader = load_dataset(dataset=glb.DATASET, loaders=True)
     
     # get some variable
-    epochs = glb.NUM_EPOCHS
+    n_iterations = glb.NUM_ITERS
     
     start = timer()
-    print(f"\nStarting the Training Process for {epochs} epochs\n")
+    print(f"\nStarting the Training Process for {n_iterations} iterations\n")
     # iterate over the workers
-    for epoch in range(epochs):
+    for curr_iter in range(n_iterations):
         # print log message
-        print("\n\nRunning epoch {0} of {1}".format(epoch+1, epochs))
+        print("\n\nRunning iteration {0} of {1}".format(curr_iter+1, n_iterations))
             
         # sample workers based on our logic here
         sampled_workers = [worker[0] for worker in WORKER_LIST] #[WORKER_LIST[0][0]]
@@ -169,7 +169,7 @@ async def training_handler():
         model_params = model_flatten(model)
         
         # run the training on all workers
-        start_timer_epoch = timer()
+        start_timer_iter = timer()
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(
@@ -177,37 +177,37 @@ async def training_handler():
                     model_params=model_params,
                     train_plan=train_plan,
                     dataset_key=glb.DATASET_ID,
-                    epoch=epoch,
+                    iteration=curr_iter,
                     sampled_id=idx,
                     kwargs=kwargs,
                 )
                 for idx, worker in enumerate(sampled_workers)
             ])
-        end_timer_epoch = timer()
+        end_timer_iter = timer()
 
-        print(f"Epoch: {epoch}\nTime to train and await gradients for {len(sampled_workers)} workers: {(end_timer_epoch-start_timer_epoch):3f}s")
+        print(f"Iteration: {curr_iter}\nTime to train and await gradients for {len(sampled_workers)} workers: {(end_timer_iter-start_timer_iter):3f}s")
 
         
         # extract from all workers the updated model parameters
-        upd_wrkr_params = {}
-        for worker_id, loss, updated_params in results:
-            upd_wrkr_params[worker_id] = updated_params
+        upd_wrkr = {}
+        for worker_id, loss, recvd_update in results:
+            upd_wrkr[worker_id] = recvd_update
         
         # get the parameter average
-        param_avg = average_model_parameters(upd_wrkr_params)
+        avgd_update = average_model_parameters(upd_wrkr)
         
         # unpack the new parameters into local model
-        #model_params -= param_avg
-        model_unflatten(model, param_avg)
+        model_params.add_(avgd_update)
+        model_unflatten(model, model_params)
         
         # evaluate on testset using the new model
-        print("Begin Validation @ Epoch {}".format(epoch+1))
+        print("Begin Validation @ Iteration {}".format(curr_iter+1))
         val_loss, prec1 = validate(test_loader, model, criterion)
         
     #while True:
     #   continue
     end = timer()
-    print(f"Total Training Time for {epochs} epochs: {(end-start):3f} seconds")
+    print(f"Total Training Time for {n_iterations} iterations: {(end-start):3f} seconds")
 
 #***********************************************************************************************#
 #                                                                                               #

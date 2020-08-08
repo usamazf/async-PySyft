@@ -47,11 +47,11 @@ def init( ):
     
     # define if you want the batches to be sampled randomly
     global RANDOM_SAMPLE_BATCHES
-    RANDOM_SAMPLE_BATCHES = False
+    RANDOM_SAMPLE_BATCHES = True
     
-    # define the total number of epochs you want to train
-    global NUM_EPOCHS
-    NUM_EPOCHS = 20
+    # define the total number of iertations you want to train for
+    global NUM_ITERS
+    NUM_ITERS = 20
 
     # define the initial learning rate to start the training with
     global INITIAL_LR

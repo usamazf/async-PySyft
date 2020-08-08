@@ -88,7 +88,7 @@ class FederatedWorker(WebsocketServerWorker):
         self.train_manager.setup_configurations(kwargs)
         return "SUCCESS"
 
-    def fit(self, dataset_key: str, epoch: int, device: str = "cpu", **kwargs):
+    def fit(self, dataset_key: str, iteration: int, device: str = "cpu", **kwargs):
         """Fits a model on the local dataset as specified in the local TrainConfig object.
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
@@ -99,7 +99,7 @@ class FederatedWorker(WebsocketServerWorker):
         # print a log message
         print("Fitting model on worker {0}".format(self.id))
         
-        # note starting time of the epoch
+        # note starting time of the iteration
         start_fit_time = timer()
         
         # get model and it's respective parameters
@@ -130,11 +130,11 @@ class FederatedWorker(WebsocketServerWorker):
             # update local stores
             losses.append(loss)
         
-        # note the end time of the epoch
+        # note the end time of the iteration
         end_fit_time = timer()
         
         # print a log message
-        print(f'Time to train 1 epoch on worker {self.id}: {(end_fit_time-start_fit_time):3f}s')
+        print(f'Time to train 1 iteration on worker {self.id}: {(end_fit_time-start_fit_time):3f}s')
         
         # store all the results so that they can requested back by the server
         self.train_manager.store_training_results(model, losses)
