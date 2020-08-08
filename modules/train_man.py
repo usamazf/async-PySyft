@@ -79,7 +79,7 @@ class TrainingManager:
     def get_global_model(self):
         """Extract the latest model parameters stored at the federated worker
         """
-        model_params = self.owner.get_obj(self.model_param_id)
+        model_params = self.owner.get_obj(self.model_param_id).clone().detach()
         model = self.models[self.model_id]
         # unpack parameters into the locally stored model
         model_unflatten(model, model_params)

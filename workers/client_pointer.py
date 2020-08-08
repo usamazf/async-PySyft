@@ -73,7 +73,7 @@ class FederatedWorkerPointer(WebsocketClientWorker):
         # return the reponse from the above call.
         return response
 
-    async def async_fit(self, dataset_key: str, epoch: int, device: str = "cpu", return_ids: List[int] = None):
+    async def async_fit(self, dataset_key: str, iteration: int, device: str = "cpu", return_ids: List[int] = None):
         """Asynchronous call to fit function on the remote location.
         Args:
             dataset_key: Identifier of the dataset which shall be used for the training.
@@ -89,7 +89,7 @@ class FederatedWorkerPointer(WebsocketClientWorker):
         self.close()
         async with websockets.connect(self.url, timeout=self.timeout, max_size=None, ping_timeout=self.timeout) as websocket:
             message = self.create_worker_command_message(
-                command_name="fit", return_ids=return_ids, dataset_key=dataset_key, epoch=epoch, device=device
+                command_name="fit", return_ids=return_ids, dataset_key=dataset_key, iteration=iteration, device=device
             )
             # Send the message and return the deserialized response.
             serialized_message = sy.serde.serialize(message)

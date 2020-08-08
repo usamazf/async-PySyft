@@ -62,6 +62,12 @@ The above commands will run 5 workers each on Machine 1 and Machine 2. Machine 1
 > The world size (--world flag) should always be the total number of workers across all machines. The starting rank (--rank flag) should always be exclusive and continuous
 list of workers.
 
+## Acknowledgements
+1) The multiple model and batch gradient computations are from the repo here: https://github.com/owkin/grad-cnns
+
+2) The training implementation for differential privacy based models etc. were inspired from the repo here: https://github.com/heyyjudes/dp-sgd
+
+
 
 
 
